@@ -1,0 +1,126 @@
+@import "tw-animate-css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ─── CSS Design Tokens ──────────────────────────────────────────────────── */
+:root {
+  --gold-chrome: linear-gradient(135deg, #2b1d00 0%, #4a3400 22%, #f0d060 45%, #fff8dc 55%, #c89800 68%, #2a1c00 85%, #2b1d00 100%);
+  --gold-chrome-text: linear-gradient(135deg, #2b1d00 0%, #fff4c4 30%, #a67c00 50%, #ffe680 70%, #3a2600 100%);
+  --gold-chrome-full: linear-gradient(#2b1d00 0%, #6b4a00 10%, #e8b800 22%, #fff4c0 32%, #a67c00 42%, #302000 52%, #2b1d00 58%, #5c3d00 68%, #ffe680 80%, #fff8dc 86%, #8a6000 94%, #2b1d00 100%);
+  --gold-border: rgba(212,175,55,0.25);
+  --radius: 0.625rem;
+}
+
+/* ─── Base ──────────────────────────────────────────────────────────────── */
+html, body, #root {
+  background: #FAFAF8;
+  font-family: 'Raleway', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Section headings — gold chrome gradient ────────────────────────────── */
+.hero-heading {
+  background: linear-gradient(
+    105deg,
+    #2b1d00 0%,
+    #4a3400 6%,
+    #c89800 12%,
+    #fff4c4 18%,
+    #6b4a00 24%,
+    #302000 30%,
+    #2b1d00 36%,
+    #503800 44%,
+    #f0d060 52%,
+    #fff8dc 58%,
+    #a67c00 66%,
+    #3a2600 74%,
+    #2b1d00 80%,
+    #403000 88%,
+    #e0b840 94%,
+    #fff4c4 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Gold chrome text — for logos, tags, accent numbers ────────────────── */
+.gold-chrome-text {
+  background: var(--gold-chrome-text);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Gold chrome text full — same gold, used on dark photo backgrounds ─── */
+.gold-chrome-text-full {
+  background: var(--gold-chrome-full);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Gold chrome bar — dividers, progress ──────────────────────────────── */
+.gold-bar {
+  background: linear-gradient(to right, #4a3400, #ffe680, #4a3400);
+}
+
+/* ─── Nav links ──────────────────────────────────────────────────────────── */
+.nav-link {
+  color: #D4AF37;
+  transition: color 0.18s ease, -webkit-text-fill-color 0.18s ease;
+  background: none;
+  -webkit-text-fill-color: #D4AF37;
+}
+.nav-link:hover,
+.nav-link--active {
+  color: #FFE9A8 !important;
+  -webkit-text-fill-color: #FFE9A8 !important;
+  background: none !important;
+}
+
+/* ─── Hide scrollbar (product photo carousels) ──────────────────────────── */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* ─── Cart icon animation — plays when an item is added ─────────────────── */
+@keyframes cartBounce {
+  0%   { transform: translateY(0) rotate(0deg) scale(1); }
+  20%  { transform: translateY(-3px) rotate(-12deg) scale(1.1); }
+  40%  { transform: translateY(0) rotate(10deg) scale(1.05); }
+  60%  { transform: translateY(-1px) rotate(-6deg) scale(1.08); }
+  80%  { transform: translateY(0) rotate(3deg) scale(1.02); }
+  100% { transform: translateY(0) rotate(0deg) scale(1); }
+}
+@keyframes cartBadgePop {
+  0%   { transform: scale(0.4); }
+  60%  { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+
+/* ─── Reduced motion ─────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ─── Animations ─────────────────────────────────────────────────────────── */
+@layer utilities {
+  @keyframes fadeOut {
+    0%   { opacity: 1; }
+    60%  { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  .animate-fadeOut {
+    animation: fadeOut 2.5s ease-in-out forwards;
+  }
+}
