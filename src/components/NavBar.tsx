@@ -4,7 +4,7 @@ import { useLanguage } from '../contexts/LanguageContext'
 import { useCart } from '../contexts/CartContext'
 
 /* ─── Color system ─── */
-const G_BAR    = 'linear-gradient(135deg, #2b1d00 0%, #4a3400 22%, #f0d060 45%, #fff8dc 55%, #c89800 68%, #2a1c00 85%, #2b1d00 100%)'
+const G_BAR    = 'linear-gradient(135deg, #8B6000 0%, #C8900A 18%, #E8B820 35%, #FFF4C4 50%, #F0D040 65%, #C8A020 82%, #8B6000 100%)'
 const TEXT_MUTED   = 'rgba(12,12,12,0.58)'
 const TEXT_PRIMARY = '#0C0C0C'
 const NAV_GOLD       = '#D4AF37'   // base dorado
@@ -63,9 +63,15 @@ const ChevronDown = () => (
 const CartIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}
     strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
-    <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
-    <path d="M3 6h18" />
-    <path d="M16 10a4 4 0 0 1-8 0" />
+    <circle cx="9" cy="21" r="1"/>
+    <circle cx="20" cy="21" r="1"/>
+    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+  </svg>
+)
+const PhoneIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}
+    strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
+    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 11.5 19.79 19.79 0 0 1 1.61 2.84 2 2 0 0 1 3.59 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.91a16 16 0 0 0 6.18 6.18l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
   </svg>
 )
 
@@ -373,7 +379,7 @@ export default function NavBar() {
   const [open, setOpen] = useState<'import' | 'export' | 'about' | 'lang' | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const navigate = useNavigate()
-  const { t, lang } = useLanguage()
+  const { t, lang, setLang } = useLanguage()
   const navRef = useRef<HTMLElement>(null)
   const mobileLangRef = useRef<HTMLDivElement>(null)
 
@@ -513,20 +519,20 @@ export default function NavBar() {
             <HouseIcon />
           </button>
 
-          <button onClick={() => setOpen(open === 'lang' ? null : 'lang')}
-            className="flex items-center gap-0.5 px-1.5 py-2 rounded-lg transition-all duration-150 cursor-pointer"
-            style={{ color: open === 'lang' ? NAV_GOLD_SHINE : NAV_GOLD, background: open === 'lang' ? 'rgba(0,0,0,0.03)' : 'transparent' }}
-            aria-label="Select language">
-            <span style={{ fontSize: '1rem', lineHeight: 1 }}>{lang === 'en' ? '🇺🇸' : '🇲🇽'}</span>
-            <span className="text-[10px] font-black tracking-wider">{lang.toUpperCase()}</span>
+          <button onClick={() => setLang(lang === 'es' ? 'en' : 'es')}
+            className="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-150 cursor-pointer"
+            style={{ color: NAV_GOLD }}
+            aria-label="Toggle language">
+            <span style={{ fontSize: '1.3rem', lineHeight: 1 }}>{lang === 'en' ? '🇺🇸' : '🇲🇽'}</span>
           </button>
 
           <button onClick={() => handleScrollTo('contacto')}
-            className="px-1.5 py-2 rounded-lg text-[10px] font-medium uppercase tracking-normal transition-colors duration-150 cursor-pointer"
+            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors duration-150 cursor-pointer"
             style={{ color: NAV_GOLD }}
+            aria-label="Contacto"
             onTouchStart={e => applyGold(e.currentTarget)}
             onTouchEnd={e => removeGold(e.currentTarget)}>
-            {t.nav.contact}
+            <PhoneIcon />
           </button>
 
           <CartButton variant="mobile" />
@@ -543,6 +549,29 @@ export default function NavBar() {
           </button>
         </div>
       </nav>
+
+      {/* ── Mobile secondary nav strip (hidden on desktop) ── */}
+      <div className="fixed left-0 right-0 sm:hidden z-40 flex"
+        style={{ top: 64, height: 40, background: 'rgba(250,250,248,0.97)', backdropFilter: 'blur(10px)', borderBottom: '1px solid rgba(212,175,55,0.18)' }}>
+        <Link to="/productos" onClick={() => setOpen(null)}
+          className="flex-1 flex items-center justify-center text-[11px] font-black uppercase tracking-widest transition-colors duration-150"
+          style={{ color: NAV_GOLD, borderRight: '1px solid rgba(212,175,55,0.15)' }}
+          onTouchStart={e => applyGold(e.currentTarget)} onTouchEnd={e => removeGold(e.currentTarget)}>
+          {t.nav.products}
+        </Link>
+        <Link to="/imports" onClick={() => setOpen(null)}
+          className="flex-1 flex items-center justify-center text-[11px] font-black uppercase tracking-widest transition-colors duration-150"
+          style={{ color: NAV_GOLD, borderRight: '1px solid rgba(212,175,55,0.15)' }}
+          onTouchStart={e => applyGold(e.currentTarget)} onTouchEnd={e => removeGold(e.currentTarget)}>
+          {t.nav.imports}
+        </Link>
+        <Link to="/exports" onClick={() => setOpen(null)}
+          className="flex-1 flex items-center justify-center text-[11px] font-black uppercase tracking-widest transition-colors duration-150"
+          style={{ color: NAV_GOLD }}
+          onTouchStart={e => applyGold(e.currentTarget)} onTouchEnd={e => removeGold(e.currentTarget)}>
+          {t.nav.exports}
+        </Link>
+      </div>
 
       {/* ── Mobile language dropdown ── */}
       {open === 'lang' && (

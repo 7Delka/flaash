@@ -60,7 +60,7 @@ function ProductCard({ base, name, desc, badge, learnMore }: { base: CardBase; n
             </span>
           </div>
         </div>
-        <a href={`https://wa.me/5491157988854?text=${waMsg}`} target="_blank" rel="noopener noreferrer"
+        <a href={`https://wa.me/525531856985?text=${waMsg}`} target="_blank" rel="noopener noreferrer"
           className="shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold uppercase tracking-widest transition-all duration-200 hover:scale-105 self-start mt-1"
           style={{ border: '1.5px solid rgba(212,175,55,0.55)', color: '#D4AF37', background: 'rgba(212,175,55,0.06)' }}>
           {learnMore}
@@ -102,7 +102,7 @@ export default function ExportacionesPage() {
   return (
     <div style={{ background: '#FAFAF8', minHeight: '100vh' }}>
       <NavBar />
-      <main className="pt-24 px-4 sm:px-6 md:px-10 pb-10">
+      <main className="pt-[104px] sm:pt-24 px-4 sm:px-6 md:px-10 pb-10">
         <div className="text-center mb-14 sm:mb-20 max-w-3xl mx-auto">
           <h1 className="hero-heading font-black uppercase leading-none tracking-tight mb-5"
             style={{ fontSize: 'clamp(2rem, 9vw, 88px)' }}>

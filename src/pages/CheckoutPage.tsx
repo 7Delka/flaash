@@ -1,24 +1,23 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { loadStripe } from '@stripe/stripe-js'
+import { Elements, useStripe, useElements } from '@stripe/react-stripe-js'
 import NavBar from '../components/NavBar'
 import ContactFooter from '../components/ContactFooter'
+import PhoneInput from '../components/PhoneInput'
 import { useCart } from '../contexts/CartContext'
 import { useLanguage } from '../contexts/LanguageContext'
-import { formatMXN, isFreeShippingZone } from '../lib/money'
+import { formatMXN, isFreeShippingZone, SHIPPING_COST_MXN } from '../lib/money'
 import { BANK_TRANSFER_INFO } from '../lib/bankTransferConfig'
 import type { PaymentMethod } from '../lib/orderTypes'
 
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  background: '#FFFFFF',
-  border: '1px solid rgba(212,175,55,0.3)',
-  borderRadius: 10,
-  padding: '10px 14px',
-  color: '#0C0C0C',
-  fontSize: '0.9rem',
-  outline: 'none',
-}
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PK as string)
 
+// ── Small UI helpers ─────────────────────────────────────────────────────────
+const inputStyle: React.CSSProperties = {
+  width: '100%', background: '#FFFFFF', border: '1px solid rgba(212,175,55,0.3)',
+  borderRadius: 10, padding: '10px 14px', color: '#0C0C0C', fontSize: '0.9rem', outline: 'none',
+}
 const labelStyle: React.CSSProperties = {
   display: 'block', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.15em',
   textTransform: 'uppercase', marginBottom: 6, color: 'rgba(12,12,12,0.55)',
@@ -38,15 +37,21 @@ const TrashIcon = () => (
     <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z" />
   </svg>
 )
-
 const BankIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
     <path d="M3 21h18M4 21V10m16 11V10M2 10l10-6 10 6M6 10v6m4-6v6m4-6v6m4-6v6" />
   </svg>
 )
-const MPIcon = () => (
+const OxxoIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-    <circle cx="12" cy="12" r="10" /><path d="M8 12h8M12 8v8" />
+    <rect x="2" y="5" width="20" height="14" rx="2" />
+    <path d="M2 10h20M7 15l3-4 3 4 3-4" />
+  </svg>
+)
+const MpIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5">
+    <circle cx="12" cy="12" r="10" fill="#009EE3" />
+    <path d="M6.5 14.5c.8-1.2 2-2 3.5-2s2.7.8 3.5 2c.8-1.2 2-2 3.5-2" stroke="#FFE600" strokeWidth="1.8" strokeLinecap="round" fill="none" />
   </svg>
 )
 const CheckIcon = () => (
@@ -64,24 +69,28 @@ const ChevronIcon = ({ open }: { open: boolean }) => (
 type Step = 'contact' | 'address' | 'delivery' | 'payment'
 const STEP_ORDER: Step[] = ['contact', 'address', 'delivery', 'payment']
 
-export default function CheckoutPage() {
+// ── Inner checkout form (needs Stripe hooks, must be inside <Elements>) ───────
+function CheckoutForm() {
   const cart = useCart()
   const { lang } = useLanguage()
   const navigate = useNavigate()
+  const stripe = useStripe()
+  const elements = useElements()
+
   const [step, setStep] = useState<Step>('contact')
   const [deliveryAcked, setDeliveryAcked] = useState(false)
-  const [method, setMethod] = useState<PaymentMethod>('card')
+  const [method, setMethod] = useState<PaymentMethod>('mercadopago')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
-  const [mpLinkModal, setMpLinkModal] = useState<{ total: number; orderId: string } | null>(null)
-  const [copied, setCopied] = useState(false)
-  const [form, setForm] = useState({ fullName: '', email: '', phone: '', street: '', city: '', state: '', zip: '' })
+  const [form, setForm] = useState({
+    fullName: '', email: '', phone: '',
+    street: '', city: '', state: '', zip: '',
+  })
 
   const t = {
     heading: lang === 'es' ? 'Finalizar Compra' : 'Checkout',
     productsWord: lang === 'es' ? 'productos' : 'products',
     contactTitle: lang === 'es' ? 'Contacto' : 'Contact',
-    email: 'Email',
     addressTitle: lang === 'es' ? 'Dirección' : 'Address',
     fullName: lang === 'es' ? 'Nombre Completo' : 'Full Name',
     phone: lang === 'es' ? 'Teléfono' : 'Phone',
@@ -92,59 +101,60 @@ export default function CheckoutPage() {
     deliveryTitle: lang === 'es' ? 'Opciones de Entrega' : 'Delivery Options',
     standardDelivery: lang === 'es' ? 'Entrega Estándar' : 'Standard Delivery',
     paymentTitle: lang === 'es' ? 'Pago' : 'Payment',
-    card: lang === 'es' ? 'Tarjeta de Crédito/Débito' : 'Credit/Debit Card',
-    mplink: 'Mercado Pago',
-    transfer: lang === 'es' ? 'Transferencia Bancaria' : 'Bank Transfer',
-    next: lang === 'es' ? 'Siguiente →' : 'Next →',
+    card: lang === 'es' ? 'Tarjeta de crédito / débito' : 'Credit / Debit card',
+    oxxo: 'OXXO (efectivo)',
+    transfer: lang === 'es' ? 'Transferencia SPEI' : 'SPEI Transfer',
     edit: lang === 'es' ? 'Editar' : 'Edit',
     summary: lang === 'es' ? 'Tu Pedido' : 'Your Order',
     subtotal: lang === 'es' ? 'Subtotal' : 'Subtotal',
-    iva: lang === 'es' ? 'IVA (21%)' : 'VAT (21%)',
+    iva: lang === 'es' ? 'IVA (16%)' : 'VAT (16%)',
     shipping: lang === 'es' ? 'Envío' : 'Shipping',
-    freeCDMX: lang === 'es' ? 'Gratis (Buenos Aires)' : 'Free (Buenos Aires)',
-    quoteShipping: lang === 'es' ? 'A cotizar (fuera de CABA)' : 'To be quoted (outside Buenos Aires)',
+    freeCDMX: lang === 'es' ? 'Gratis (CDMX)' : 'Free (CDMX)',
+    quoteShipping: lang === 'es' ? 'A cotizar' : 'To be quoted',
     fillAddress: lang === 'es' ? 'Completá tu dirección' : 'Fill in your address',
     total: 'Total',
     pay: lang === 'es' ? 'Pagar Ahora' : 'Pay Now',
     processing: lang === 'es' ? 'Procesando…' : 'Processing…',
     emptyCart: lang === 'es' ? 'Tu carrito está vacío.' : 'Your cart is empty.',
     backToProducts: lang === 'es' ? 'Ver productos disponibles →' : 'View available products →',
-    transferNotReady: lang === 'es'
-      ? 'La transferencia bancaria todavía no está configurada. Elegí otro método o contactanos por WhatsApp.'
-      : 'Bank transfer is not configured yet. Choose another method or contact us on WhatsApp.',
+    pending: lang === 'es' ? 'A confirmar' : 'To be confirmed',
+    remove: lang === 'es' ? 'Eliminar' : 'Remove',
     cardInfo: lang === 'es'
-      ? 'Vas a completar el pago con tu tarjeta en la pantalla segura de Mercado Pago.'
-      : 'You\'ll complete payment with your card on Mercado Pago\'s secure checkout screen.',
-    mplinkInfo: lang === 'es'
-      ? 'Al confirmar, te mostramos el monto exacto y un link directo a Mercado Pago para completar el pago.'
-      : 'After confirming, we show you the exact amount and a direct link to Mercado Pago to complete payment.',
+      ? 'Pago seguro procesado por Stripe. Tu tarjeta se cobra al instante.'
+      : 'Secure payment processed by Stripe. Your card is charged immediately.',
+    oxxoInfo: lang === 'es'
+      ? 'Recibís una referencia de pago para abonar en cualquier tienda OXXO.'
+      : 'You receive a payment reference to pay at any OXXO store.',
     transferInfo: lang === 'es'
       ? 'Tu pedido queda pendiente hasta que confirmemos la transferencia.'
       : 'Your order stays pending until we confirm the transfer.',
-    bank: lang === 'es' ? 'Banco' : 'Bank',
-    holder: lang === 'es' ? 'Titular' : 'Account holder',
-    clabe: 'CBU',
-    alias: 'Alias',
-    pending: lang === 'es' ? 'A confirmar' : 'To be confirmed',
-    remove: lang === 'es' ? 'Eliminar' : 'Remove',
     pendingBlock: lang === 'es'
-      ? 'Tu carrito tiene productos con precio a confirmar. Contactanos por WhatsApp para cerrar el precio antes de pagar, o quitalos del carrito para pagar el resto ahora.'
-      : 'Your cart has products with a price to be confirmed. Contact us on WhatsApp to confirm pricing before paying, or remove them from the cart to pay for the rest now.',
+      ? 'Tu carrito tiene productos con precio a confirmar. Contactanos por WhatsApp o quitálos del carrito.'
+      : 'Your cart has items with a price to be confirmed. Contact us on WhatsApp or remove them.',
     quoteBlock: lang === 'es'
-      ? 'Los envíos fuera de Buenos Aires se cotizan aparte. Contactanos por WhatsApp con tu dirección para confirmar el costo de envío antes de pagar.'
-      : 'Shipping outside Buenos Aires is quoted separately. Contact us on WhatsApp with your address to confirm the shipping cost before paying.',
+      ? 'Envíos fuera de CDMX se cotizan por WhatsApp antes de pagar.'
+      : 'Shipping outside CDMX is quoted on WhatsApp before payment.',
     addressBlock: lang === 'es'
       ? 'Completá ciudad y estado para calcular el envío.'
       : 'Fill in city and state to calculate shipping.',
+    bank: lang === 'es' ? 'Banco' : 'Bank',
+    holder: lang === 'es' ? 'Titular' : 'Account holder',
+    clabe: 'CLABE',
+    mercadopago: lang === 'es' ? 'Mercado Pago · Tarjeta de crédito / débito' : 'Mercado Pago · Credit / Debit card',
+    mpInfo: lang === 'es'
+      ? 'Podés pagar con tu tarjeta de crédito o débito, en efectivo (OXXO) o con tu saldo de Mercado Pago. Serás redirigido de forma segura a la plataforma de pago.'
+      : 'You can pay with your credit or debit card, cash (OXXO), or your Mercado Pago balance. You will be securely redirected to the payment platform.',
   }
 
   const hasPending = cart.items.some(i => i.unitPrice === 0)
   const contactValid = form.email.trim().length > 3 && form.email.includes('@')
   const addressValid = form.fullName.trim().length > 0 && form.phone.trim().length > 5
-    && form.street.trim().length > 0 && form.city.trim().length > 0 && form.state.trim().length > 0 && form.zip.trim().length > 0
+    && form.street.trim().length > 0 && form.city.trim().length > 0
+    && form.state.trim().length > 0 && form.zip.trim().length > 0
   const addressFilled = form.city.trim().length > 0 && form.state.trim().length > 0
   const isFreeShipping = addressFilled && isFreeShippingZone(form.city, form.state)
-  const shippingBlocked = !addressFilled || !isFreeShipping
+  const shippingCost = !addressFilled ? 0 : isFreeShipping ? 0 : SHIPPING_COST_MXN
+  const orderTotal = cart.total + shippingCost
 
   const goTo = (target: Step) => setStep(target)
   const goNext = (from: Step) => {
@@ -152,84 +162,74 @@ export default function CheckoutPage() {
     if (idx < STEP_ORDER.length - 1) setStep(STEP_ORDER[idx + 1])
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
-    if (submitting || hasPending || shippingBlocked || step !== 'payment') return
+    if (submitting || hasPending || step !== 'payment') return
     setError('')
-
-    if (method === 'transfer' && !BANK_TRANSFER_INFO.isConfigured) {
-      setError(t.transferNotReady)
-      return
-    }
-
+    setError('')
     setSubmitting(true)
-    const orderTotal = cart.total
+
     try {
-      if (method === 'mplink') {
-        const orderId = `FLA-${Date.now().toString(36).toUpperCase()}`
-        const notifPayload = {
-          orderId,
-          customer: { fullName: form.fullName, email: form.email, phone: form.phone, address: { street: form.street, city: form.city, state: form.state, zip: form.zip } },
-          items: cart.items.map(i => ({ id: i.id, name: i.name, unitPrice: i.unitPrice, qty: i.qty })),
-          subtotal: cart.subtotal, iva: cart.iva, shipping: 0, total: orderTotal,
-          paymentMethod: 'mplink',
-        }
-        fetch('/api/send-order-notification', {
+      // Mercado Pago Checkout Pro — save order then redirect to MP
+      if (method === 'mercadopago') {
+        const orderRes = await fetch('/api/create-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(notifPayload),
-        }).catch(() => {})
+          body: JSON.stringify({
+            items: cart.items.map(i => ({ id: i.id, name: i.name, unitPrice: i.unitPrice, qty: i.qty })),
+            subtotal: cart.subtotal, iva: cart.iva, shipping: shippingCost, total: orderTotal,
+            customer: { fullName: form.fullName, email: form.email, phone: form.phone,
+              address: { street: form.street, city: form.city, state: form.state, zip: form.zip } },
+            paymentMethod: 'mercadopago',
+            paymentStatus: 'pending',
+          }),
+        })
+        if (!orderRes.ok) throw new Error('No se pudo registrar el pedido.')
+        const { orderId } = await orderRes.json()
+
+        const mpRes = await fetch('/api/mp-preference', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId,
+            items: cart.items.map(i => ({ id: i.id, name: i.name, unitPrice: i.unitPrice, qty: i.qty })),
+            shipping: shippingCost,
+          }),
+        })
+        if (!mpRes.ok) throw new Error('No se pudo iniciar el pago con Mercado Pago.')
+        const { initPoint } = await mpRes.json()
+
         cart.clear()
-        setMpLinkModal({ total: orderTotal, orderId })
-        setSubmitting(false)
+        window.location.href = initPoint
         return
       }
 
-      const payload = {
-        items: cart.items.map(i => ({ id: i.id, name: i.name, unitPrice: i.unitPrice, qty: i.qty })),
-        subtotal: cart.subtotal, iva: cart.iva, shipping: 0, total: cart.total,
-        customer: {
-          fullName: form.fullName, email: form.email, phone: form.phone,
-          address: { street: form.street, city: form.city, state: form.state, zip: form.zip },
-        },
-        paymentMethod: method,
-      }
-
+      // SPEI / OXXO — save order as pending, redirect to confirmation
       const res = await fetch('/api/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          items: cart.items.map(i => ({ id: i.id, name: i.name, unitPrice: i.unitPrice, qty: i.qty })),
+          subtotal: cart.subtotal, iva: cart.iva, shipping: shippingCost, total: orderTotal,
+          customer: { fullName: form.fullName, email: form.email, phone: form.phone,
+            address: { street: form.street, city: form.city, state: form.state, zip: form.zip } },
+          paymentMethod: method,
+          paymentStatus: 'pending',
+        }),
       })
       if (!res.ok) throw new Error(`create-order failed: ${res.status}`)
       const { orderId } = await res.json()
-
-      if (method === 'transfer') {
-        cart.clear()
-        navigate(`/order/${orderId}`)
-        return
-      }
-
-      // card → Mercado Pago Checkout Pro
-      const prefRes = await fetch('/api/create-mp-preference', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId }),
-      })
-      if (!prefRes.ok) throw new Error(`create-mp-preference failed: ${prefRes.status}`)
-      const { initPoint } = await prefRes.json()
-      if (!initPoint) throw new Error('No init_point returned')
-
       cart.clear()
-      window.location.href = initPoint
-    } catch (err) {
+      navigate(`/order/${orderId}`)
+    } catch (err: unknown) {
       console.error(err)
       setError(lang === 'es'
-        ? 'No pudimos conectar con el servidor de pagos. Esto es esperado si las funciones de Netlify todavía no están desplegadas/configuradas — probá desde el sitio publicado, o contactanos por WhatsApp mientras tanto.'
-        : 'We could not reach the payment server. This is expected if Netlify Functions are not deployed/configured yet — try from the published site, or reach us on WhatsApp meanwhile.')
+        ? 'No pudimos procesar el pedido. Intentá de nuevo o contactanos por WhatsApp.'
+        : 'Could not process your order. Try again or contact us on WhatsApp.')
     } finally {
       setSubmitting(false)
     }
-  }
+  }, [submitting, hasPending, step, method, stripe, elements, cart, form, lang, navigate, shippingCost, orderTotal])
 
   if (cart.items.length === 0) {
     return (
@@ -245,8 +245,9 @@ export default function CheckoutPage() {
   }
 
   const methods: { id: PaymentMethod; label: string; icon: React.ReactNode }[] = [
-    { id: 'mplink', label: t.mplink, icon: <MPIcon /> },
-    { id: 'transfer', label: t.transfer, icon: <BankIcon /> },
+    { id: 'mercadopago', label: t.mercadopago, icon: <MpIcon /> },
+    { id: 'transfer',    label: t.transfer,    icon: <BankIcon /> },
+    { id: 'oxxo',        label: t.oxxo,        icon: <OxxoIcon /> },
   ]
 
   const sectionCardStyle: React.CSSProperties = { background: '#FFFFFF', border: '1px solid rgba(212,175,55,0.2)' }
@@ -295,10 +296,10 @@ export default function CheckoutPage() {
               <SectionHeader id="contact" title={t.contactTitle} isOpen={step === 'contact'} isDone={contactValid} summary={form.email} />
               {step === 'contact' && (
                 <div className="mt-5 flex flex-col gap-4">
-                  <Field label={t.email} type="email" required value={form.email}
+                  <Field label="Email" type="email" required value={form.email}
                     onChange={e => setForm({ ...form, email: e.target.value })} />
                   <button type="button" disabled={!contactValid} onClick={() => goNext('contact')}
-                    className="w-full flex items-center justify-between px-6 py-4 rounded-xl text-sm font-black uppercase tracking-wide transition-opacity duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="w-full flex items-center justify-between px-6 py-4 rounded-xl text-sm font-black uppercase tracking-wide disabled:opacity-40 disabled:cursor-not-allowed"
                     style={{ background: '#0C0C0C', color: '#FFFFFF', cursor: contactValid ? 'pointer' : 'not-allowed' }}>
                     <span>{lang === 'es' ? 'Siguiente' : 'Next'}</span><span>→</span>
                   </button>
@@ -309,15 +310,21 @@ export default function CheckoutPage() {
             {/* DIRECCIÓN */}
             <div className="rounded-2xl p-5 sm:p-6" style={sectionCardStyle}>
               <SectionHeader id="address" title={t.addressTitle} isOpen={step === 'address'} isDone={addressValid}
-                summary={addressValid ? `${form.fullName} — ${form.street}, ${form.city}, ${form.state}` : undefined} />
+                summary={addressValid ? `${form.fullName} — ${form.street}, ${form.city}` : undefined} />
               {step === 'address' && (
                 <div className="mt-5 grid sm:grid-cols-2 gap-4">
                   <div className="sm:col-span-2">
                     <Field label={t.fullName} required value={form.fullName}
                       onChange={e => setForm({ ...form, fullName: e.target.value })} />
                   </div>
-                  <Field label={t.phone} type="tel" required value={form.phone}
-                    onChange={e => setForm({ ...form, phone: e.target.value })} />
+                  <div className="sm:col-span-1">
+                    <PhoneInput
+                      label={t.phone}
+                      value={form.phone}
+                      onChange={phone => setForm(f => ({ ...f, phone }))}
+                      required
+                    />
+                  </div>
                   <div />
                   <div className="sm:col-span-2">
                     <Field label={t.street} required value={form.street}
@@ -331,7 +338,7 @@ export default function CheckoutPage() {
                     onChange={e => setForm({ ...form, zip: e.target.value })} />
                   <div className="sm:col-span-2">
                     <button type="button" disabled={!addressValid} onClick={() => goNext('address')}
-                      className="w-full flex items-center justify-between px-6 py-4 rounded-xl text-sm font-black uppercase tracking-wide transition-opacity duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="w-full flex items-center justify-between px-6 py-4 rounded-xl text-sm font-black uppercase tracking-wide disabled:opacity-40 disabled:cursor-not-allowed"
                       style={{ background: '#0C0C0C', color: '#FFFFFF', cursor: addressValid ? 'pointer' : 'not-allowed' }}>
                       <span>{lang === 'es' ? 'Siguiente' : 'Next'}</span><span>→</span>
                     </button>
@@ -340,7 +347,7 @@ export default function CheckoutPage() {
               )}
             </div>
 
-            {/* OPCIONES DE ENTREGA */}
+            {/* ENTREGA */}
             <div className="rounded-2xl p-5 sm:p-6" style={sectionCardStyle}>
               <SectionHeader id="delivery" title={t.deliveryTitle} isOpen={step === 'delivery'} isDone={deliveryAcked}
                 summary={isFreeShipping ? t.freeCDMX : addressFilled ? t.quoteShipping : undefined} />
@@ -376,14 +383,15 @@ export default function CheckoutPage() {
                 <div className="mt-5 flex flex-col gap-2.5">
                   {methods.map(m => (
                     <div key={m.id}>
-                      <label className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all duration-150"
+                      <label className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer"
                         style={{
                           border: `1.5px solid ${method === m.id ? '#D4AF37' : 'rgba(212,175,55,0.25)'}`,
                           borderBottomLeftRadius: method === m.id ? 0 : undefined,
                           borderBottomRightRadius: method === m.id ? 0 : undefined,
                           background: method === m.id ? 'rgba(212,175,55,0.08)' : 'transparent',
                         }}>
-                        <input type="radio" name="method" checked={method === m.id} onChange={() => setMethod(m.id)} className="sr-only" />
+                        <input type="radio" name="method" checked={method === m.id}
+                          onChange={() => { setMethod(m.id); setError('') }} className="sr-only" />
                         <span style={{ color: '#0C0C0C' }}>{m.icon}</span>
                         <span className="text-sm font-semibold" style={{ color: '#0C0C0C' }}>{m.label}</span>
                       </label>
@@ -391,20 +399,17 @@ export default function CheckoutPage() {
                       {method === m.id && (
                         <div className="px-4 py-3 rounded-b-xl text-xs leading-relaxed"
                           style={{ border: '1.5px solid #D4AF37', borderTop: 'none', background: 'rgba(212,175,55,0.04)', color: 'rgba(12,12,12,0.7)' }}>
-                          {m.id === 'mplink' && t.mplinkInfo}
-                          {m.id === 'card' && t.cardInfo}
+                          {m.id === 'mercadopago' && t.mpInfo}
+                          {m.id === 'oxxo' && t.oxxoInfo}
                           {m.id === 'transfer' && (
                             BANK_TRANSFER_INFO.isConfigured ? (
                               <div className="flex flex-col gap-1">
                                 <p><strong>{t.bank}:</strong> {BANK_TRANSFER_INFO.bankName}</p>
                                 <p><strong>{t.holder}:</strong> {BANK_TRANSFER_INFO.accountHolder}</p>
                                 <p><strong>{t.clabe}:</strong> {BANK_TRANSFER_INFO.clabe}</p>
-                                {'alias' in BANK_TRANSFER_INFO && BANK_TRANSFER_INFO.alias && (
-                                  <p><strong>{t.alias}:</strong> {BANK_TRANSFER_INFO.alias}</p>
-                                )}
                                 <p className="mt-1" style={{ color: 'rgba(12,12,12,0.5)' }}>{t.transferInfo}</p>
                               </div>
-                            ) : t.transferNotReady
+                            ) : t.transferInfo
                           )}
                         </div>
                       )}
@@ -415,6 +420,7 @@ export default function CheckoutPage() {
             </div>
           </div>
 
+          {/* RESUMEN */}
           <div className="md:col-span-2">
             <div className="rounded-2xl p-5 sm:p-6 sticky top-24" style={{ background: '#17171A', border: '1px solid rgba(212,175,55,0.25)' }}>
               <h2 className="text-xs font-black uppercase tracking-[0.2em] mb-4" style={{ color: 'rgba(212,175,55,0.8)' }}>{t.summary}</h2>
@@ -426,7 +432,7 @@ export default function CheckoutPage() {
                       {item.unitPrice === 0 ? t.pending : formatMXN(item.unitPrice * item.qty)}
                     </span>
                     <button type="button" onClick={() => cart.removeItem(item.id)} aria-label={t.remove}
-                      className="flex-shrink-0 p-1 cursor-pointer transition-colors duration-150"
+                      className="flex-shrink-0 p-1 cursor-pointer"
                       style={{ color: 'rgba(245,240,232,0.4)' }}
                       onMouseEnter={e => e.currentTarget.style.color = '#E06060'}
                       onMouseLeave={e => e.currentTarget.style.color = 'rgba(245,240,232,0.4)'}>
@@ -440,12 +446,12 @@ export default function CheckoutPage() {
                 <div className="flex justify-between" style={{ color: 'rgba(245,240,232,0.7)' }}><span>{t.iva}</span><span>{formatMXN(cart.iva)}</span></div>
                 <div className="flex justify-between" style={{ color: 'rgba(245,240,232,0.7)' }}>
                   <span>{t.shipping}</span>
-                  <span style={{ color: !addressFilled ? 'rgba(245,240,232,0.5)' : isFreeShipping ? '#7CC576' : '#E0B040' }}>
-                    {!addressFilled ? t.fillAddress : isFreeShipping ? t.freeCDMX : t.quoteShipping}
+                  <span style={{ color: !addressFilled ? 'rgba(245,240,232,0.5)' : isFreeShipping ? '#7CC576' : 'rgba(245,240,232,0.85)' }}>
+                    {!addressFilled ? t.fillAddress : isFreeShipping ? t.freeCDMX : formatMXN(SHIPPING_COST_MXN)}
                   </span>
                 </div>
                 <div className="flex justify-between text-base font-black pt-2 mt-1" style={{ color: '#D4AF37', borderTop: '1px dashed rgba(212,175,55,0.3)' }}>
-                  <span>{t.total}</span><span>{formatMXN(cart.total)}</span>
+                  <span>{t.total}</span><span>{formatMXN(orderTotal)}</span>
                 </div>
               </div>
 
@@ -454,82 +460,50 @@ export default function CheckoutPage() {
                   {t.pendingBlock}
                 </p>
               )}
-
               {!hasPending && !addressFilled && (
                 <p className="text-xs mt-4 p-3 rounded-lg" style={{ color: 'rgba(245,240,232,0.7)', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}>
                   {t.addressBlock}
                 </p>
               )}
-
               {!hasPending && addressFilled && !isFreeShipping && (
                 <p className="text-xs mt-4 p-3 rounded-lg" style={{ color: '#FFE9A8', background: 'rgba(200,152,0,0.15)', border: '1px solid rgba(200,152,0,0.3)' }}>
-                  {t.quoteBlock}
+                  {lang === 'es'
+                    ? `Se agregará un costo de envío de ${formatMXN(SHIPPING_COST_MXN)} para envíos fuera de CDMX y Estado de México.`
+                    : `A shipping fee of ${formatMXN(SHIPPING_COST_MXN)} will be added for deliveries outside CDMX and Estado de México.`}
                 </p>
               )}
-
               {error && (
                 <p className="text-xs mt-4 p-3 rounded-lg" style={{ color: '#FFD8D8', background: 'rgba(200,50,50,0.15)', border: '1px solid rgba(200,50,50,0.3)' }}>
                   {error}
                 </p>
               )}
 
-              <button type="submit" disabled={submitting || hasPending || shippingBlocked || step !== 'payment'}
+              <button type="submit"
+                disabled={submitting || hasPending || step !== 'payment'}
                 className="w-full mt-5 py-3.5 rounded-full text-sm font-black uppercase tracking-widest transition-transform duration-200 hover:scale-[1.01] disabled:opacity-60 disabled:cursor-not-allowed"
-                style={{ background: 'linear-gradient(135deg, #2b1d00 0%, #4a3400 22%, #f0d060 45%, #fff8dc 55%, #c89800 68%, #2a1c00 85%, #2b1d00 100%)', color: '#0C0C0C', cursor: (submitting || hasPending || shippingBlocked || step !== 'payment') ? 'not-allowed' : 'pointer' }}>
+                style={{ background: 'linear-gradient(135deg, #2b1d00 0%, #4a3400 22%, #f0d060 45%, #fff8dc 55%, #c89800 68%, #2a1c00 85%, #2b1d00 100%)', color: '#0C0C0C' }}>
                 {submitting ? t.processing : t.pay}
               </button>
+
+              {method === 'mercadopago' && step === 'payment' && (
+                <p className="text-center text-xs mt-3" style={{ color: 'rgba(245,240,232,0.35)' }}>
+                  🔒 {lang === 'es' ? 'Pago seguro con Mercado Pago' : 'Secure payment by Mercado Pago'}
+                </p>
+              )}
             </div>
           </div>
         </form>
       </main>
       <ContactFooter />
-
-      {mpLinkModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.75)' }}>
-          <div className="w-full max-w-sm rounded-2xl p-6 flex flex-col gap-4" style={{ background: '#FAFAF8' }}>
-            <div className="text-center">
-              <p className="text-xs uppercase tracking-widest font-bold mb-1" style={{ color: '#D4AF37' }}>
-                {lang === 'es' ? 'Pedido registrado' : 'Order registered'}
-              </p>
-              <p className="text-xs" style={{ color: 'rgba(12,12,12,0.5)' }}>#{mpLinkModal.orderId}</p>
-            </div>
-
-            <div className="rounded-xl p-4 text-center" style={{ background: '#0C0C0C' }}>
-              <p className="text-xs mb-1" style={{ color: 'rgba(245,240,232,0.5)' }}>
-                {lang === 'es' ? 'Monto a pagar en Mercado Pago' : 'Amount to pay in Mercado Pago'}
-              </p>
-              <p className="text-3xl font-black" style={{ color: '#D4AF37' }}>{formatMXN(mpLinkModal.total)}</p>
-            </div>
-
-            <p className="text-xs text-center" style={{ color: 'rgba(12,12,12,0.6)' }}>
-              {lang === 'es'
-                ? 'Copiá el monto, hacé clic en "Ir a Mercado Pago" e ingresalo cuando te lo pida.'
-                : 'Copy the amount, click "Go to Mercado Pago" and enter it when prompted.'}
-            </p>
-
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(mpLinkModal.total.toFixed(2))
-                setCopied(true)
-                setTimeout(() => setCopied(false), 2000)
-              }}
-              className="w-full py-3 rounded-full text-sm font-bold border-2 transition-colors"
-              style={{ borderColor: '#D4AF37', color: '#0C0C0C', background: copied ? '#D4AF37' : 'transparent' }}>
-              {copied ? (lang === 'es' ? '¡Copiado!' : 'Copied!') : (lang === 'es' ? 'Copiar monto' : 'Copy amount')}
-            </button>
-
-            <a
-              href="https://link.mercadopago.com.ar/legends"
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => setTimeout(() => setMpLinkModal(null), 500)}
-              className="w-full py-3.5 rounded-full text-sm font-black uppercase tracking-widest text-center"
-              style={{ background: 'linear-gradient(135deg, #2b1d00 0%, #4a3400 22%, #f0d060 45%, #fff8dc 55%, #c89800 68%, #2a1c00 85%, #2b1d00 100%)', color: '#0C0C0C' }}>
-              {lang === 'es' ? 'Ir a Mercado Pago →' : 'Go to Mercado Pago →'}
-            </a>
-          </div>
-        </div>
-      )}
     </div>
+  )
+}
+
+// ── Wrapper con Elements provider ─────────────────────────────────────────────
+export default function CheckoutPage() {
+  return (
+    <Elements stripe={stripePromise} options={{ locale: 'es', loader: 'never' }}>
+      <CheckoutForm />
+    </Elements>
   )
 }

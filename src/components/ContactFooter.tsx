@@ -3,14 +3,14 @@ import { motion } from 'framer-motion'
 import { useLanguage } from '../contexts/LanguageContext'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// WEB3FORMS — los correos llegan a office@corpbsm.com
+// WEB3FORMS — los correos llegan a flaash.info@gmail.com
 // ─────────────────────────────────────────────────────────────────────────────
-const WEB3FORMS_KEY = 'e393f6f0-6569-4a54-b559-b59733a7d93c'
-const CONTACT_EMAIL = 'office@corpbsm.com'
+const WEB3FORMS_KEY = '7e925c10-5078-4f65-a818-2214d1f09691'
+const CONTACT_EMAIL = 'flaash.info@gmail.com'
 
 const WA_PHONES = [
-  { label: '+54 9 11-5798-8854', num: '5491157988854' },
   { label: '+52 55 3185 6985', num: '525531856985' },
+  { label: '+54 9 11-5798-8854', num: '5491157988854' },
 ]
 
 function waHref(num: string, lang: 'en' | 'es') {
@@ -233,7 +233,7 @@ function ContactForm() {
       <button
         type="submit"
         className="w-full font-bold uppercase tracking-widest transition-all duration-200 cursor-pointer hover:opacity-90 active:scale-[0.98]"
-        style={{ padding: '12px 24px', borderRadius: 10, fontSize: '0.75rem', background: 'linear-gradient(105deg, #7A4800 0%, #C8860A 18%, #E8B020 32%, #F5CC40 50%, #E8B020 68%, #C8860A 82%, #7A4800 100%)', color: '#0C0C0C', marginTop: 4 }}
+        style={{ padding: '12px 24px', borderRadius: 10, fontSize: '0.75rem', background: 'linear-gradient(135deg, #8B6000 0%, #C8900A 18%, #E8B820 35%, #FFF4C4 50%, #F0D040 65%, #C8A020 82%, #8B6000 100%)', color: '#0C0C0C', marginTop: 4 }}
       >
         {sent ? c.sent : c.send}
       </button>

@@ -91,7 +91,7 @@ export default function TestimonialsSection() {
                 className="flex-shrink-0 flex items-center justify-center rounded-full font-black text-[0.6rem] tracking-wider select-none"
                 style={{
                   width: 38, height: 38,
-                  background: 'linear-gradient(135deg, #2b1d00 0%, #4a3400 22%, #f0d060 45%, #fff8dc 55%, #c89800 68%, #2a1c00 85%, #2b1d00 100%)',
+                  background: 'linear-gradient(135deg, #8B6000 0%, #C8900A 18%, #E8B820 35%, #FFF4C4 50%, #F0D040 65%, #C8A020 82%, #8B6000 100%)',
                   color: '#0C0C0C',
                   letterSpacing: '0.05em',
                 }}

@@ -1,4 +1,4 @@
-export type PaymentMethod = 'card' | 'oxxo' | 'transfer' | 'mplink'
+export type PaymentMethod = 'card' | 'oxxo' | 'transfer' | 'mercadopago'
 
 export type PaymentStatus = 'pending' | 'approved' | 'rejected' | 'cancelled' | 'refunded'
 
@@ -32,8 +32,6 @@ export interface Order {
   customer: CustomerInfo
   paymentMethod: PaymentMethod
   paymentStatus: PaymentStatus
-  mpPreferenceId?: string
-  mpPaymentId?: string
   createdAt: string
   updatedAt: string
 }

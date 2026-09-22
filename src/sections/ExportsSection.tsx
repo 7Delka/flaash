@@ -178,7 +178,7 @@ const ExportsSection = () => {
           target="_blank" rel="noopener noreferrer"
           className="px-10 py-4 rounded-full font-medium uppercase tracking-widest text-sm transition-all duration-200 hover:scale-[1.03]"
           style={{
-            background: 'linear-gradient(135deg,#2b1d00 0%,#4a3400 22%,#f0d060 45%,#fff8dc 55%,#c89800 68%,#2a1c00 85%,#2b1d00 100%)',
+            background: 'linear-gradient(135deg, #8B6000 0%, #C8900A 18%, #E8B820 35%, #FFF4C4 50%, #F0D040 65%, #C8A020 82%, #8B6000 100%)',
             color: '#0C0C0C',
             fontWeight: 700,
             boxShadow: '0 4px 24px rgba(212,175,55,0.3)',
@@ -187,7 +187,7 @@ const ExportsSection = () => {
           Contactanos por WhatsApp
         </a>
         <p className="text-xs" style={{ color: 'rgba(245,240,232,0.25)' }}>
-          © 2025 Flaash · corpobsm@gmail.com
+          © 2025 Flaash · flaash.info@gmail.com
         </p>
       </div>
     </section>

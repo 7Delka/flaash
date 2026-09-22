@@ -6,7 +6,7 @@ export default function ResalePage() {
   return (
     <div style={{ background: '#F8F7F4', minHeight: '100vh' }}>
       <NavBar />
-      <main className="pt-20">
+      <main className="pt-[104px] sm:pt-20">
         <ResaleProductsSection />
       </main>
       <ContactFooter />

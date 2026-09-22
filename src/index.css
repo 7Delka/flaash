@@ -11,9 +11,11 @@
 
 /* ─── CSS Design Tokens ──────────────────────────────────────────────────── */
 :root {
-  --gold-chrome: linear-gradient(135deg, #2b1d00 0%, #4a3400 22%, #f0d060 45%, #fff8dc 55%, #c89800 68%, #2a1c00 85%, #2b1d00 100%);
-  --gold-chrome-text: linear-gradient(135deg, #2b1d00 0%, #fff4c4 30%, #a67c00 50%, #ffe680 70%, #3a2600 100%);
-  --gold-chrome-full: linear-gradient(#2b1d00 0%, #6b4a00 10%, #e8b800 22%, #fff4c0 32%, #a67c00 42%, #302000 52%, #2b1d00 58%, #5c3d00 68%, #ffe680 80%, #fff8dc 86%, #8a6000 94%, #2b1d00 100%);
+  --gold: #D4AF37;
+  --gold-gradient: linear-gradient(135deg, #8B6000 0%, #C8900A 18%, #E8B820 35%, #FFF4C4 50%, #F0D040 65%, #C8A020 82%, #8B6000 100%);
+  --gold-chrome: var(--gold-gradient);
+  --gold-chrome-text: var(--gold-gradient);
+  --gold-chrome-full: var(--gold-gradient);
   --gold-border: rgba(212,175,55,0.25);
   --radius: 0.625rem;
 }
@@ -26,51 +28,33 @@ html, body, #root {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ─── Section headings — gold chrome gradient ────────────────────────────── */
+/* ─── Section headings — gold gradient ──────────────────────────────────── */
 .hero-heading {
-  background: linear-gradient(
-    105deg,
-    #2b1d00 0%,
-    #4a3400 6%,
-    #c89800 12%,
-    #fff4c4 18%,
-    #6b4a00 24%,
-    #302000 30%,
-    #2b1d00 36%,
-    #503800 44%,
-    #f0d060 52%,
-    #fff8dc 58%,
-    #a67c00 66%,
-    #3a2600 74%,
-    #2b1d00 80%,
-    #403000 88%,
-    #e0b840 94%,
-    #fff4c4 100%
-  );
+  background: var(--gold-gradient);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-/* ─── Gold chrome text — for logos, tags, accent numbers ────────────────── */
+/* ─── Gold text — for logos, tags, accent numbers ────────────────────────── */
 .gold-chrome-text {
-  background: var(--gold-chrome-text);
+  background: var(--gold-gradient);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-/* ─── Gold chrome text full — same gold, used on dark photo backgrounds ─── */
+/* ─── Gold text full — used on dark photo backgrounds ────────────────────── */
 .gold-chrome-text-full {
-  background: var(--gold-chrome-full);
+  background: var(--gold-gradient);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-/* ─── Gold chrome bar — dividers, progress ──────────────────────────────── */
+/* ─── Gold bar — dividers, progress ──────────────────────────────────────── */
 .gold-bar {
-  background: linear-gradient(to right, #4a3400, #ffe680, #4a3400);
+  background: linear-gradient(to right, #8B6000, #F0D040, #8B6000);
 }
 
 /* ─── Nav links ──────────────────────────────────────────────────────────── */

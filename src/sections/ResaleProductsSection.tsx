@@ -2,8 +2,12 @@ import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useLanguage } from '../contexts/LanguageContext'
 import { useCart } from '../contexts/CartContext'
 import { PRODUCTS, CATEGORIES, type CatalogProduct } from '../data/catalog'
+import { HOME_PRODUCTS_CATALOG } from '../pages/ProductsPage'
+
+const ALL_PRODUCTS: CatalogProduct[] = [...HOME_PRODUCTS_CATALOG, ...PRODUCTS]
 
 const GOLD = '#D4AF37'
+const GOLD_GRAD = 'linear-gradient(135deg, #8B6000 0%, #C8900A 18%, #E8B820 35%, #FFF4C4 50%, #F0D040 65%, #C8A020 82%, #8B6000 100%)'
 const DARK = '#0C0C0C'
 const PER_PAGE = 20
 
@@ -24,7 +28,8 @@ const CAT_IMGS: Record<string, string[]> = {
   decoration:     [U('1555041469-db26f89df576'), U('1493663284031-b7e3aefcae8e'), U('1506439773649-6e0eb8cfb237'), U('1513694203232-719a6ca57ef4'), U('1449247709967-d4461a6a6103'), U('1586023492125-27b2c045efd3')],
 }
 function productImgs(product: CatalogProduct): string[] {
-  if (product.aliexpressUrl) return product.images
+  if (product.images?.length) return product.images
+  if (product.aliexpressUrl) return []
   const pool = CAT_IMGS[product.category] ?? CAT_IMGS.technology
   const base = product.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0)
   return [0, 1, 2].map(i => pool[(base + i) % pool.length])
@@ -103,12 +108,16 @@ function ProductModal({ product, lang, onAdd, onClose }: {
             {/* Main image */}
             <div className="relative rounded-2xl overflow-hidden aspect-square bg-white"
               style={{ boxShadow: '0 2px 16px rgba(0,0,0,0.08)' }}>
-              <img
-                src={imgs[imgIdx]}
-                alt={name}
-                className="w-full h-full object-cover"
-                onError={e => { (e.currentTarget as HTMLImageElement).src = `https://picsum.photos/seed/${product.id}${imgIdx}/600/600` }}
-              />
+              {imgs.length > 0 ? (
+                <img
+                  src={imgs[imgIdx]}
+                  alt={name}
+                  className="w-full h-full object-cover"
+                  onError={e => { (e.currentTarget as HTMLImageElement).src = `https://picsum.photos/seed/${product.id}${imgIdx}/600/600` }}
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center" style={{ background: '#F0EDE8', color: '#C8A028', fontSize: '3rem' }}>📦</div>
+              )}
               {discount > 0 && (
                 <span className="absolute top-3 left-3 px-2 py-1 rounded-full text-xs font-black"
                   style={{ background: '#ef4444', color: '#fff' }}>
@@ -165,7 +174,7 @@ function ProductModal({ product, lang, onAdd, onClose }: {
             <div className="flex gap-2 flex-wrap">
               {product.badge && (
                 <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide"
-                  style={{ background: GOLD, color: DARK }}>
+                  style={{ background: GOLD_GRAD, color: DARK }}>
                   {product.badge}
                 </span>
               )}
@@ -294,7 +303,7 @@ function ProductCard({ product, lang, onAdd, onOpen }: {
       {/* ── Image ── */}
       <div className="relative w-full aspect-square overflow-hidden cursor-pointer" style={{ background: '#F5F5F5' }}
         onClick={() => onOpen(product)}>
-        <img
+        {imgs.length > 0 ? <img
           src={imgs[imgIdx]}
           alt={name}
           className="w-full h-full object-cover"
@@ -305,7 +314,7 @@ function ProductCard({ product, lang, onAdd, onOpen }: {
             el.onerror = null
             el.src = `https://picsum.photos/seed/${product.id}${imgIdx}/480/480`
           }}
-        />
+        /> : <div className="w-full h-full flex items-center justify-center" style={{ background: '#F0EDE8', color: '#C8A028', fontSize: '2.5rem' }}>📦</div>}
 
         {/* Badges */}
         {product.badge && (
@@ -432,7 +441,10 @@ export default function ResaleProductsSection() {
   const [priceMax, setPriceMax] = useState('')
   const [page, setPage] = useState(1)
   const [modalProduct, setModalProduct] = useState<CatalogProduct | null>(null)
+  const [searchFocused, setSearchFocused] = useState(false)
   const sectionRef = useRef<HTMLElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const suggestionsRef = useRef<HTMLDivElement>(null)
 
   const resetPage = useCallback(() => setPage(1), [])
 
@@ -440,8 +452,23 @@ export default function ResaleProductsSection() {
     sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [activeCategory])
 
+  useEffect(() => {
+    const handler = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node
+      if (suggestionsRef.current?.contains(target)) return
+      if (inputRef.current?.contains(target)) return
+      setSearchFocused(false)
+    }
+    document.addEventListener('mousedown', handler)
+    document.addEventListener('touchstart', handler)
+    return () => {
+      document.removeEventListener('mousedown', handler)
+      document.removeEventListener('touchstart', handler)
+    }
+  }, [])
+
   const filtered = useMemo(() => {
-    let list = [...PRODUCTS]
+    let list = [...ALL_PRODUCTS]
 
     if (activeCategory !== 'all')
       list = list.filter(p => p.category === activeCategory)
@@ -472,10 +499,14 @@ export default function ResaleProductsSection() {
   const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
 
   const catCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: PRODUCTS.length }
-    CATEGORIES.slice(1).forEach(c => { counts[c.id] = PRODUCTS.filter(p => p.category === c.id).length })
+    const counts: Record<string, number> = { all: ALL_PRODUCTS.length }
+    CATEGORIES.slice(1).forEach(c => { counts[c.id] = ALL_PRODUCTS.filter(p => p.category === c.id).length })
     return counts
   }, [])
+
+  const popularProducts = useMemo(() =>
+    [...ALL_PRODUCTS].sort((a, b) => b.reviews - a.reviews).slice(0, 15)
+  , [])
 
   const handleAdd = useCallback((p: CatalogProduct) => {
     addItem({ id: p.id, name: lang === 'en' ? p.nameEn : p.nameEs, unitPrice: p.priceMXN, image: p.images[0] })
@@ -564,7 +595,7 @@ export default function ResaleProductsSection() {
                           {lang === 'en' ? cat.nameEn : cat.nameEs}
                         </span>
                         <span className="text-[9px] rounded-full px-1.5 py-0.5 font-bold tabular-nums"
-                          style={{ background: active ? GOLD : 'rgba(0,0,0,0.06)', color: active ? DARK : '#888' }}>
+                          style={{ background: active ? GOLD_GRAD : 'rgba(0,0,0,0.06)', color: active ? DARK : '#888' }}>
                           {catCounts[cat.id] ?? 0}
                         </span>
                       </button>
@@ -626,7 +657,7 @@ export default function ResaleProductsSection() {
                           className="flex items-center justify-center rounded-2xl text-xl transition-all"
                           style={{
                             width: 48, height: 48,
-                            background: active ? GOLD : '#F5F5F5',
+                            background: active ? GOLD_GRAD : '#F5F5F5',
                             boxShadow: active ? `0 2px 8px ${GOLD}66` : 'none',
                             transform: active ? 'scale(1.08)' : 'scale(1)',
                           }}
@@ -664,9 +695,11 @@ export default function ResaleProductsSection() {
                     <circle cx="11" cy="11" r="8" /><path strokeLinecap="round" d="m21 21-4.35-4.35" />
                   </svg>
                   <input
+                    ref={inputRef}
                     type="text"
                     value={query}
                     onChange={e => { setQuery(e.target.value); resetPage() }}
+                    onFocus={() => setSearchFocused(true)}
                     placeholder={lang === 'en' ? 'Search products...' : 'Buscar productos...'}
                     className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm"
                     style={{ background: '#fff', border: '1px solid rgba(212,175,55,0.3)', color: DARK, outline: 'none' }}
@@ -676,6 +709,58 @@ export default function ResaleProductsSection() {
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer">
                       ✕
                     </button>
+                  )}
+
+                  {/* Suggestions panel */}
+                  {searchFocused && !query.trim() && (
+                    <div ref={suggestionsRef}
+                      className="absolute left-0 z-50 flex overflow-hidden rounded-2xl"
+                      style={{ top: 'calc(100% + 6px)', minWidth: 'min(calc(100vw - 32px), 620px)', maxHeight: 420, background: '#FFFFFF', boxShadow: '0 12px 40px rgba(0,0,0,0.2)', border: '1px solid rgba(212,175,55,0.15)' }}
+                      onMouseDown={e => e.preventDefault()}>
+
+                      {/* Left: categories */}
+                      <div className="flex-shrink-0 overflow-y-auto" style={{ width: 150, background: '#FAFAFA', borderRight: '1px solid #EFEFEF' }}>
+                        {CATEGORIES.map(cat => (
+                          <button key={cat.id} type="button"
+                            onClick={() => { setActiveCategory(cat.id); resetPage(); setSearchFocused(false); inputRef.current?.blur() }}
+                            className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-xs font-medium cursor-pointer transition-colors"
+                            style={{
+                              background: activeCategory === cat.id ? 'rgba(212,175,55,0.12)' : 'transparent',
+                              color: activeCategory === cat.id ? '#8B6200' : '#333',
+                              borderLeft: activeCategory === cat.id ? '3px solid #D4AF37' : '3px solid transparent',
+                            }}>
+                            <span style={{ fontSize: '1rem' }}>{cat.emoji}</span>
+                            <span>{lang === 'en' ? cat.nameEn : cat.nameEs}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Right: popular products */}
+                      <div className="flex-1 overflow-y-auto p-4">
+                        <p className="text-[10px] font-black uppercase tracking-widest mb-3" style={{ color: 'rgba(212,175,55,0.85)' }}>
+                          {lang === 'en' ? 'Popular Products' : 'Productos Populares'}
+                        </p>
+                        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                          {popularProducts.map(prod => {
+                            const imgs = productImgs(prod)
+                            const name = lang === 'en' ? prod.nameEn : prod.nameEs
+                            return (
+                              <button key={prod.id} type="button"
+                                onClick={() => { setQuery(name); resetPage(); setSearchFocused(false) }}
+                                className="flex flex-col items-center gap-1 p-2 rounded-xl border text-center cursor-pointer transition-all hover:border-[rgba(212,175,55,0.5)] hover:shadow-sm"
+                                style={{ borderColor: 'rgba(212,175,55,0.15)', background: '#FAFAFA' }}>
+                                {imgs[0] && (
+                                  <img src={imgs[0]} alt="" className="w-full aspect-square object-contain rounded-lg" loading="lazy" />
+                                )}
+                                <span className="text-[9px] font-medium leading-tight" style={{ color: '#0C0C0C', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                  {name}
+                                </span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
 
@@ -712,7 +797,7 @@ export default function ResaleProductsSection() {
                   </p>
                   <button type="button" onClick={() => { setQuery(''); setPriceMin(''); setPriceMax(''); setActiveCategory('all'); resetPage() }}
                     className="mt-4 px-5 py-2 rounded-full text-sm font-bold cursor-pointer"
-                    style={{ background: GOLD, color: DARK }}>
+                    style={{ background: GOLD_GRAD, color: DARK }}>
                     {lang === 'en' ? 'Clear all filters' : 'Limpiar filtros'}
                   </button>
                 </div>
@@ -740,7 +825,7 @@ export default function ResaleProductsSection() {
                       onClick={() => setPage(p)}
                       className="w-9 h-9 rounded-xl text-sm cursor-pointer transition-all"
                       style={{
-                        background: page === p ? GOLD : '#fff',
+                        background: page === p ? GOLD_GRAD : '#fff',
                         color: page === p ? DARK : '#666',
                         border: '1px solid rgba(212,175,55,0.3)',
                         fontWeight: page === p ? 800 : 500,
